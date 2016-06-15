@@ -1,0 +1,28 @@
+Package: sbrl
+Type: Package
+Title: Scalable Bayesian Rule Lists Model
+Version: 1.0
+Date: 2016-06-07
+Authors@R: c(person("Hongyu", "Yang", role = c("aut", "cre"),
+		     email = "hongyuy@mit.edu"),
+	      person("Morris", "Chen", role = "ctb",
+		     email = "Morris_CM_Chen@wistron.com"),
+	      person("Cynthia", "Rudin", role = c("aut", "ctb"),
+		     email = "rudin@cs.duke.edu"),
+	      person("Margo", "Seltzer", role = c("aut", "ctb"),
+		     email = "margo@eecs.harvard.edu"))
+Author: Hongyu Yang [aut, cre],
+  Morris Chen [ctb],
+  Cynthia Rudin [aut, ctb],
+  Margo Seltzer [aut, ctb]
+Maintainer: Hongyu Yang <hongyuy@mit.edu>
+Description: An implementation of Scalable Bayesian Rule Lists Algorithm.
+License: GPL (>= 2)
+Imports: Rcpp (>= 0.12.4), arules, methods
+RcppModules: sbrl
+LinkingTo: Rcpp
+NeedsCompilation: yes
+LazyData: yes
+Packaged: 2016-06-14 18:50:13 UTC; hongyuy
+Repository: CRAN
+Date/Publication: 2016-06-15 08:33:09
