@@ -620,8 +620,11 @@ ac_includes_default="\
 
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
+GMP_TARGETS
 GMP_LIBS
-GMP_CFLAGS
+GMP_INC
+GSL_LIBS
+GSL_CFLAGS
 EGREP
 GREP
 CPP
@@ -632,8 +635,6 @@ CPPFLAGS
 LDFLAGS
 CFLAGS
 CC
-GSL_LIBS
-GSL_CFLAGS
 GSL_CONFIG
 target_alias
 host_alias
@@ -676,6 +677,7 @@ SHELL'
 ac_subst_files=''
 ac_user_opts='
 enable_option_checking
+with_gmp
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1290,6 +1292,12 @@ if test -n "$ac_init_help"; then
      short | recursive ) echo "Configuration of sbrl 1.0:";;
    esac
   cat <<\_ACEOF
+
+Optional Packages:
+  --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
+  --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
+  --with-gmp=DIR        enable gmp support DIR=yes, no, or gmp dir
+                            (e.g. ../gmp-1.3.2, /usr/gnu /usr/local/gnu)
 
 Some influential environment variables:
   CC          C compiler command
@@ -2066,10 +2074,7 @@ else
     as_fn_error $? "gsl-config not found, is GSL1 installed?" "$LINENO" 5
 fi
 
-# Now substitute these variables in src/Makevars.in to create src/Makevars
-
-
-
+## Now for GMP
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
@@ -2860,7 +2865,194 @@ ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $
 ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
-ac_ext=c
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for inline" >&5
+$as_echo_n "checking for inline... " >&6; }
+if ${ac_cv_c_inline+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_cv_c_inline=no
+for ac_kw in inline __inline__ __inline; do
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#ifndef __cplusplus
+typedef int foo_t;
+static $ac_kw foo_t static_foo () {return 0; }
+$ac_kw foo_t foo () {return 0; }
+#endif
+
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ac_cv_c_inline=$ac_kw
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  test "$ac_cv_c_inline" != no && break
+done
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_c_inline" >&5
+$as_echo "$ac_cv_c_inline" >&6; }
+
+case $ac_cv_c_inline in
+  inline | yes) ;;
+  *)
+    case $ac_cv_c_inline in
+      no) ac_val=;;
+      *) ac_val=$ac_cv_c_inline;;
+    esac
+    cat >>confdefs.h <<_ACEOF
+#ifndef __cplusplus
+#define inline $ac_val
+#endif
+_ACEOF
+    ;;
+esac
+
+
+#
+# Check to see if GMP exists.
+#
+
+GMP_VER=0
+GMP_INC=""
+GMP_LIBS=""
+GMP_DIR=""
+
+# First, parse any --with-gmp args.
+
+
+# Check whether --with-gmp was given.
+if test "${with_gmp+set}" = set; then :
+  withval=$with_gmp;
+    case "$withval" in
+      no)
+        GMP_VER=-1
+        ;;
+      yes)
+        ;;
+      *)
+        GMP_DIR="$withval"
+        ;;
+    esac
+
+
+fi
+
+
+# Paths to search for GMP header and library files.  List only the parent
+# directory of the include/ and lib/ dirs, e.g. "/usr/gnu" instead of
+# both "/usr/gnu/include" and "/usr/gnu/lib"
+
+GMP_PATH="/usr/local/Cellar/gmp/6.1.1 \
+          /usr/local/Cellar/gmp/6.1.0 \
+          /usr/local/Cellar/gmp/6.0.0 \
+          /usr/local/Cellar/gmp/5.1.3 \
+          /usr/local/Cellar/gmp/5.1.2 \
+          /usr/local/Cellar/gmp/5.1.1 \
+          /usr/local/Cellar/gmp/5.1.0 \
+          /usr/local/Cellar/gmp/5.0.5 \
+          /usr/local/Cellar/gmp/5.0.4 \
+          /usr/local/Cellar/gmp/5.0.3 \
+          /usr/local/Cellar/gmp/5.0.2 \
+          /usr/local/Cellar/gmp/5.0.1 \
+          /usr/local/Cellar/gmp/5.0.0 \
+          /usr/local/Cellar/gmp/4.3.2 \
+          /usr/local/Cellar/gmp/4.3.1 \
+          /usr/local/Cellar/gmp/4.3.0 \
+          /usr/local/Cellar/gmp/4.2.4 \
+          /usr/local/Cellar/gmp/4.2.3 \
+          /usr/local/Cellar/gmp/4.2.2 \
+          /usr/local/Cellar/gmp/4.2.1 \
+          /usr/local/Cellar/gmp/4.2.0 \
+          /usr/gnu /usr/unsupported /usr/local/gnu \
+          /usr/local /opt/local \
+          /usr/lib64 \
+          $srcdir/gmp"
+
+# If GMP is not disabled...
+
+if test $GMP_VER != -1; then
+
+  # If GMP directory was specified, do some smart checking
+  if test "$GMP_DIR" != ""; then
+    # prefix the search path with the provided path
+    GMP_PATH="$GMP_DIR $GMP_PATH"
+  fi
+
+  # search for the header file
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for local gmp.h" >&5
+$as_echo_n "checking for local gmp.h... " >&6; }
+
+  for path in $GMP_PATH; do
+    { $as_echo "$as_me:${as_lineno-$LINENO}: searching $path" >&5
+$as_echo "$as_me: searching $path" >&6;}
+    if test -r $path/gmp.h; then
+      GMP_VER=1
+      GMP_INC="-I$path"
+      break
+    fi
+    if test -r $path/include/gmp.h; then
+      GMP_VER=1
+      GMP_INC="-I$path/include"
+      break
+    fi
+  done
+
+  if test $GMP_VER = 1; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: found in $GMP_INC" >&5
+$as_echo "found in $GMP_INC" >&6; }
+  else
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: not found" >&5
+$as_echo "not found" >&6; }
+  fi
+
+  # search for the library file only if header was found
+  if test $GMP_VER = 1; then
+
+    GMP_VER=0
+
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for local libgmp.a" >&5
+$as_echo_n "checking for local libgmp.a... " >&6; }
+
+    for path in $GMP_PATH; do
+      if test -r $path/libgmp.a; then
+        GMP_VER=1
+        GMP_LIBS="-L$path -lgmp"
+        break
+      fi
+      if test -r $path/lib/libgmp.a; then
+        GMP_VER=1
+        GMP_LIBS="-L$path/lib -lgmp"
+        break
+      fi
+    done
+    if test $GMP_VER = 1; then
+      { $as_echo "$as_me:${as_lineno-$LINENO}: result: found in $GMP_LIBS" >&5
+$as_echo "found in $GMP_LIBS" >&6; }
+    else
+      { $as_echo "$as_me:${as_lineno-$LINENO}: result: not found" >&5
+$as_echo "not found" >&6; }
+    fi
+
+#    # Check for GMP2
+#    if test $GMP_VER = 1; then
+#      LDOLD="$LDFLAGS"
+#      LDFLAGS="$GMP_LIBS -lgmp"
+#      AC_CHECK_LIB(gmp, mpz_fdiv_q_ui, AC_DEFINE(HAVE_LIB_GMP2) GMP_VER=2)
+#      if test $ac_cv_lib_gmp_mpz_fdiv_q_ui = no; then
+#        dnl with gmp3 it's a #define, use real function name
+#        AC_CHECK_LIB(gmp, __gmpz_fdiv_q_ui, AC_DEFINE(HAVE_LIB_GMP2) GMP_VER=2)
+#      fi
+#      LDFLAGS="$LDOLD"
+#    fi
+
+  fi
+
+  # If no GMP found yet, search the default system locations for it
+  # We want any local copy of GMP to override the system GMP
+
+  if test $GMP_VER = 0; then
+
+    ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
 ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
@@ -3259,13 +3451,58 @@ done
 
 ac_fn_c_check_header_mongrel "$LINENO" "gmp.h" "ac_cv_header_gmp_h" "$ac_includes_default"
 if test "x$ac_cv_header_gmp_h" = xyes; then :
-
-else
-  as_fn_error $? "gmp.h not found, is GMP installed?" "$LINENO" 5
+  $as_echo "#define HAVE_GMP_H 1" >>confdefs.h
+ GMP_VER=1
 fi
 
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for __gmpz_init in -lgmp" >&5
+
+    if test $GMP_VER = 1; then
+      { $as_echo "$as_me:${as_lineno-$LINENO}: checking for mpz_init in -lgmp" >&5
+$as_echo_n "checking for mpz_init in -lgmp... " >&6; }
+if ${ac_cv_lib_gmp_mpz_init+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lgmp  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char mpz_init ();
+int
+main ()
+{
+return mpz_init ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_gmp_mpz_init=yes
+else
+  ac_cv_lib_gmp_mpz_init=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_gmp_mpz_init" >&5
+$as_echo "$ac_cv_lib_gmp_mpz_init" >&6; }
+if test "x$ac_cv_lib_gmp_mpz_init" = xyes; then :
+  $as_echo "#define HAVE_LIB_GMP 1" >>confdefs.h
+
+else
+  GMP_VER=0
+fi
+
+      if test $ac_cv_lib_gmp_mpz_init = no; then
+                { $as_echo "$as_me:${as_lineno-$LINENO}: checking for __gmpz_init in -lgmp" >&5
 $as_echo_n "checking for __gmpz_init in -lgmp... " >&6; }
 if ${ac_cv_lib_gmp___gmpz_init+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -3302,22 +3539,52 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_gmp___gmpz_init" >&5
 $as_echo "$ac_cv_lib_gmp___gmpz_init" >&6; }
 if test "x$ac_cv_lib_gmp___gmpz_init" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBGMP 1
-_ACEOF
+  $as_echo "#define HAVE_LIB_GMP2 1" >>confdefs.h
+ GMP_VER=2
+fi
 
-  LIBS="-lgmp $LIBS"
+      fi
+    fi
 
-else
-  as_fn_error $? "gmp library not found, is GMP installed?" "$LINENO" 5
+#    # Check for GMP2
+#    if test $GMP_VER = 1; then
+#      AC_CHECK_LIB(gmp, mpz_fdiv_q_ui, AC_DEFINE(HAVE_LIB_GMP2) GMP_VER=2)
+#      if test $ac_cv_lib_gmp_mpz_fdiv_q_ui = no; then
+#        dnl with gmp3 it's a #define, use real function name
+#        AC_CHECK_LIB(gmp, __gmpz_fdiv_q_ui, AC_DEFINE(HAVE_LIB_GMP2) GMP_VER=2)
+#      fi
+#    fi
+
+  fi
+
 fi
 
 
+case $GMP_VER in
+  -1)
+    echo GMP support is disabled, non-GMP version of librsa will be built.
+    ;;
+   0)
+    echo GMP not found, non-GMP version of librsa will be built.
+    GMP_TARGETS="nogmp"
+    ;;
+   1)
+    echo GMP 1.x found, building librsa.a, librsa-gmp.a, mkkey.
+    GMP_TARGETS="librsa-gmp.a mkkey"
+    ;;
+   2)
+    echo GMP 2.x found, building librsa.a, librsa-gmp.a, mkkey.
+    GMP_TARGETS="librsa-gmp.a mkkey"
+    ;;
+   *)
+    echo Unknown GMP configuration.
+    ;;
+esac
 
-# Now substitute these variables in src/Makevars.in to create src/Makevars
-GMP_CFLAGS=${CFLAGS}
 
-GMP_LIBS=${LIBS}
+
+
+
 
 
 ac_config_files="$ac_config_files src/Makevars"

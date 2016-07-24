@@ -39,7 +39,7 @@ int debug;
 }
 
     Rcpp::List _train(int initialization, int method, Rcpp::List paramList, Rcpp::CharacterVector dataFile, Rcpp::CharacterVector labelFile) {
-        Rprintf("training!\n");
+//        Rprintf("training!\n");
 
 	data_t	data;
 	int	ret;
@@ -127,7 +127,6 @@ int debug;
 // Rcpp::List fastLR_(Rcpp::NumericMatrix x, Rcpp::NumericVector y, Rcpp::NumericVector start, double eps_f, double eps_g, int maxit);
 RcppExport SEXP sbrl_train(SEXP initSEXP, SEXP methodSEXP, SEXP paramListSEXP, SEXP dataFileSEXP, SEXP labelFileSEXP) {
     BEGIN_RCPP
-    Rcpp::RNGScope __rngScope;
     Rcpp::traits::input_parameter< int >::type init(initSEXP);
     Rcpp::traits::input_parameter< int >::type method(methodSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type params(paramListSEXP);

@@ -52,5 +52,6 @@
 	TV.tv_sec += (TV.tv_usec / 1000000);				\
 	TV.tv_usec %= 1000000;						\
 	_tmp = TV.tv_sec + (float)TV.tv_usec / 1000000;			\
-	printf("%s: Elapsed time %7.4f\t%7.4f %s\n", S, _tmp, _tmp / N, T);	\
 }
+
+//printf("%s: Elapsed time %7.4f\t%7.4f %s\n", S, _tmp, _tmp / N, T);	

@@ -129,12 +129,12 @@ propose(ruleset_t *rs, rule_t *rules, rule_t *labels, int nrules,
 	    nrules, &ndx1, &ndx2, &stepchar, jump_prob, RAND_GSL) != 0)
 	    	goto err;
 
-	if (debug > 10) {
-		printf("Given ruleset: \n");
-		ruleset_print(rs, rules, (debug > 100));
-		printf("Operation %c(%d)(%d) produced proposal:\n",
-		    stepchar, ndx1, ndx2);
-	}
+//	if (debug > 10) {
+//		printf("Given ruleset: \n");
+//		ruleset_print(rs, rules, (debug > 100));
+//		printf("Operation %c(%d)(%d) produced proposal:\n",
+//		    stepchar, ndx1, ndx2);
+//	}
 	switch (stepchar) {
 	case 'A':
 		/* Add the rule whose id is ndx1 at position ndx2 */
@@ -163,23 +163,23 @@ propose(ruleset_t *rs, rule_t *rules, rule_t *labels, int nrules,
 	new_log_post = compute_log_posterior(rs_new,
 	    rules, nrules, labels, params, 0, change_ndx, &prefix_bound);
 
-	if (debug > 10) {
-		ruleset_print(rs_new, rules, (debug > 100));
-		printf("With new log_posterior = %0.6f\n", new_log_post);
-	}
+//	if (debug > 10) {
+//		ruleset_print(rs_new, rules, (debug > 100));
+//		printf("With new log_posterior = %0.6f\n", new_log_post);
+//	}
 	if (prefix_bound < max_log_post)
 		(*cnt)++;
 
 	if (accept_func(new_log_post,
 	    *ret_log_post, prefix_bound, max_log_post, extra, RAND_GSL)) {
-	    	if (debug > 10)
-			printf("Accepted\n");
+//	    	if (debug > 10)
+//			printf("Accepted\n");
 		rs_ret = rs_new;
 		*ret_log_post = new_log_post;
 		ruleset_destroy(rs);
 	} else {
-	    	if (debug > 10)
-			printf("Rejected\n");
+//	    	if (debug > 10)
+//			printf("Rejected\n");
 		rs_ret = rs;
 		ruleset_destroy(rs_new);
 	}
@@ -222,9 +222,9 @@ compute_pmf(int nrules, params_t *params)
 	for (i = 0; i < nrules; i++) {
 		log_lambda_pmf[i] =
 		    log(gsl_ran_poisson_pdf(i, params->lambda));
-		if (debug > 100)
-			printf("log_lambda_pmf[ %d ] = %6f\n",
-			    i, log_lambda_pmf[i]);
+//		if (debug > 100)
+//			printf("log_lambda_pmf[ %d ] = %6f\n",
+//			    i, log_lambda_pmf[i]);
 	}
 
 	if ((log_eta_pmf =
@@ -233,9 +233,9 @@ compute_pmf(int nrules, params_t *params)
 	for (i = 0; i <= MAX_RULE_CARDINALITY; i++) {
 		log_eta_pmf[i] =
 		    log(gsl_ran_poisson_pdf(i, params->eta));
-		if (debug > 100)
-			printf("log_eta_pmf[ %d ] = %6f\n",
-			    i, log_eta_pmf[i]);
+//		if (debug > 100)
+//			printf("log_eta_pmf[ %d ] = %6f\n",
+//			    i, log_eta_pmf[i]);
 	}
 
 	/*
@@ -245,8 +245,8 @@ compute_pmf(int nrules, params_t *params)
 	eta_norm = gsl_cdf_poisson_P(MAX_RULE_CARDINALITY, params->eta)
 	    - gsl_ran_poisson_pdf(0, params->eta);
 
-	if (debug > 10)
-		printf("eta_norm(Beta_Z) = %6f\n", eta_norm);
+//	if (debug > 10)
+//		printf("eta_norm(Beta_Z) = %6f\n", eta_norm);
 
 	return (0);
 }
@@ -264,10 +264,10 @@ compute_cardinality(rule_t *rules, int nrules)
 			maxcard = rules[i].cardinality;
 	}
 
-	if (debug > 10)
-		for (i = 0; i <= MAX_RULE_CARDINALITY; i++)
-			printf("There are %d rules with cardinality %d.\n",
-			    card_count[i], i);
+//	if (debug > 10)
+//		for (i = 0; i <= MAX_RULE_CARDINALITY; i++)
+//			printf("There are %d rules with cardinality %d.\n",
+//			    card_count[i], i);
 }
 
 int
@@ -396,17 +396,17 @@ get_theta(ruleset_t * rs, rule_t * rules, rule_t * labels, params_t *params)
 		n1 = rs->rules[j].ncaptured - n0;
 		theta[j] = (n1 + params->alpha[1]) * 1.0 /
 		    (n1 + n0 + params->alpha[0] + params->alpha[1]);
-		if (debug) {
-			printf("n0=%d, n1=%d, captured=%d, training accuracy =",
-			    n0, n1, rs->rules[j].ncaptured);
-			if (theta[j] >= params->threshold)
-				printf(" %.8f\n",
-				    n1 * 1.0 / rs->rules[j].ncaptured);
-			else
-				printf(" %.8f\n",
-				    n0 * 1.0 / rs->rules[j].ncaptured);
-			printf("theta[%d] = %.8f\n", j, theta[j]);
-		}
+//		if (debug) {
+//			printf("n0=%d, n1=%d, captured=%d, training accuracy =",
+//			    n0, n1, rs->rules[j].ncaptured);
+//			if (theta[j] >= params->threshold)
+//				printf(" %.8f\n",
+//				    n1 * 1.0 / rs->rules[j].ncaptured);
+//			else
+//				printf(" %.8f\n",
+//				    n0 * 1.0 / rs->rules[j].ncaptured);
+//			printf("theta[%d] = %.8f\n", j, theta[j]);
+//		}
 	}
 	rule_vfree(&v0);
 	return (theta);
@@ -430,9 +430,9 @@ run_mcmc(int iters, int nsamples, int nrules,
 	n_add = n_delete = n_swap = 0;
 
 	/* Initialize the ruleset. */
-	if (debug > 10)
-		printf("Prefix bound = %10f v_star = %f\n",
-		    prefix_bound, v_star);
+//	if (debug > 10)
+//		printf("Prefix bound = %10f v_star = %f\n",
+//		    prefix_bound, v_star);
 	/*
 	 * Construct rulesets with exactly 2 rules -- one drawn from
 	 * the permutation and the default rule.
@@ -453,12 +453,12 @@ run_mcmc(int iters, int nsamples, int nrules,
 		ruleset_init(2, nsamples, rarray, rules, &rs);
 		log_post_rs = compute_log_posterior(rs, rules,
 		    nrules, labels, params, 0, 1, &prefix_bound);
-		if (debug > 10) {
-			printf("Initial random ruleset\n");
-			ruleset_print(rs, rules, 1);
-			printf("Prefix bound = %f v_star = %f\n",
-			    prefix_bound, v_star);
-		}
+//		if (debug > 10) {
+//			printf("Initial random ruleset\n");
+//			ruleset_print(rs, rules, 1);
+//			printf("Prefix bound = %f v_star = %f\n",
+//			    prefix_bound, v_star);
+//		}
 	}
 
 	/*
@@ -489,17 +489,17 @@ run_mcmc(int iters, int nsamples, int nrules,
 	ruleset_init(len, nsamples, rs_idarray, rules, &rs);
 	free(rs_idarray);
 
-	if (debug) {
-		printf("\n%s%d #add=%d #delete=%d #swap=%d):\n",
-		    "The best rule list is (#reject=", nsuccessful_rej,
-		    n_add, n_delete, n_swap);
-
-		printf("max_log_posterior = %6f\n", max_log_posterior);
-		printf("max_log_posterior = %6f\n",
-		    compute_log_posterior(rs, rules,
-		    nrules, labels, params, 1, -1, &prefix_bound));
-		ruleset_print(rs, rules, (debug > 100));
-	}
+//	if (debug) {
+//		printf("\n%s%d #add=%d #delete=%d #swap=%d):\n",
+//		    "The best rule list is (#reject=", nsuccessful_rej,
+//		    n_add, n_delete, n_swap);
+//
+//		printf("max_log_posterior = %6f\n", max_log_posterior);
+//		printf("max_log_posterior = %6f\n",
+//		    compute_log_posterior(rs, rules,
+//		    nrules, labels, params, 1, -1, &prefix_bound));
+//		ruleset_print(rs, rules, (debug > 100));
+//	}
 	return (rs);
 
 err:
@@ -533,10 +533,10 @@ run_simulated_annealing(int iters, int init_size, int nsamples,
 	max_log_posterior = log_post_rs;
 	len = rs->n_rules;
 
-	if (debug > 10) {
-		printf("Initial ruleset: \n");
-		ruleset_print(rs, rules, (debug > 100));
-	}
+//	if (debug > 10) {
+//		printf("Initial ruleset: \n");
+//		ruleset_print(rs, rules, (debug > 100));
+//	}
 
 	/* Pre-compute the cooling schedule. */
 	double T[100000], tmp[50];
@@ -549,9 +549,9 @@ run_simulated_annealing(int iters, int init_size, int nsamples,
 			T[ntimepoints++] = 1.0 / (i + 1);
 	}
 
-	if (debug > 0)
-		printf("iters_per_step = %d, #timepoints = %d\n",
-		    iters_per_step, ntimepoints);
+//	if (debug > 0)
+//		printf("iters_per_step = %d, #timepoints = %d\n",
+//		    iters_per_step, ntimepoints);
 
 	for (k = 0; k < ntimepoints; k++) {
 		double tk = T[k];
@@ -571,14 +571,14 @@ run_simulated_annealing(int iters, int init_size, int nsamples,
 	}
 	/* Regenerate the best rule list. */
 	ruleset_destroy(rs);
-	printf("\n\n/*----The best rule list is: */\n");
-	ruleset_init(len, nsamples, rs_idarray, rules, &rs);
-	printf("max_log_posterior = %6f\n\n", max_log_posterior);
-	printf("max_log_posterior = %6f\n\n",
-	    compute_log_posterior(rs, rules,
-	    nrules, labels, params, 1, -1, &prefix_bound));
-	free(rs_idarray);
-	ruleset_print(rs, rules, (debug > 100));
+//	printf("\n\n/*----The best rule list is: */\n");
+//	ruleset_init(len, nsamples, rs_idarray, rules, &rs);
+//	printf("max_log_posterior = %6f\n\n", max_log_posterior);
+//	printf("max_log_posterior = %6f\n\n",
+//	    compute_log_posterior(rs, rules,
+//	    nrules, labels, params, 1, -1, &prefix_bound));
+//	free(rs_idarray);
+//	ruleset_print(rs, rules, (debug > 100));
 
 	return (rs);
 err:
@@ -661,9 +661,9 @@ compute_log_posterior(ruleset_t *rs, rule_t *rules, int nrules, rule_t *labels,
 		}
 	}
 	*prefix_bound = prefix_prior + prefix_log_likelihood;
-	if (debug > 20)
-		printf("log_prior = %6f\t log_likelihood = %6f\n",
-		    log_prior, log_likelihood);
+//	if (debug > 20)
+//		printf("log_prior = %6f\t log_likelihood = %6f\n",
+//		    log_prior, log_likelihood);
 	rule_vfree(&v0);
 	return (log_prior + log_likelihood);
 }

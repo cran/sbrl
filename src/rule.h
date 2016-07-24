@@ -95,7 +95,7 @@ typedef struct ruleset {
 	int n_rules;			/* Number of actual rules. */
 	int n_alloc;			/* Spaces allocated for rules. */
 	int n_samples;
-	ruleset_entry_t rules[];	/* Array of rules. */
+	ruleset_entry_t rules[0];	/* Array of rules. */
 } ruleset_t;
 
 typedef struct params {
@@ -140,16 +140,16 @@ void ruleset_swap_any(ruleset_t *, int, int, rule_t *);
 int pick_random_rule(int, ruleset_t *, gsl_rng *);
 
 void ruleset_destroy(ruleset_t *);
-void ruleset_print(ruleset_t *, rule_t *, int);
-void ruleset_entry_print(ruleset_entry_t *, int, int);
+//void ruleset_print(ruleset_t *, rule_t *, int);
+//void ruleset_entry_print(ruleset_entry_t *, int, int);
 int create_random_ruleset(int, int, int, rule_t *, ruleset_t **, gsl_rng *);
 
 int rules_init(const char *, int *, int *, rule_t **, int);
 void rules_free(rule_t *, const int, int);
 
-void rule_print(rule_t *, int, int, int);
-void rule_print_all(rule_t *, int, int);
-void rule_vector_print(VECTOR, int);
+//void rule_print(rule_t *, int, int, int);
+//void rule_print_all(rule_t *, int, int);
+//void rule_vector_print(VECTOR, int);
 void rule_copy(VECTOR, VECTOR, int);
 
 int rule_ff1(VECTOR, int, int);
