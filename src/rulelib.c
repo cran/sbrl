@@ -367,9 +367,14 @@ ruleset_init(int nrs_rules,
 	/*
 	 * Allocate space for the ruleset structure and the ruleset entries.
 	 */
-	rs = malloc(sizeof(ruleset_t) + nrs_rules * sizeof(ruleset_entry_t));
+	rs = malloc(sizeof(ruleset_t));
 	if (rs == NULL)
 		return (errno);
+    else {
+        rs->rules = malloc(nrs_rules * sizeof(ruleset_entry_t));
+        if (rs->rules == NULL)
+            return (errno);
+    }
 	/*
 	 * Allocate the ruleset at the front of the structure and then
 	 * the ruleset_entry_t array at the end.
@@ -440,9 +445,10 @@ ruleset_copy(ruleset_t **ret_dest, ruleset_t *src)
 	int i;
 	ruleset_t *dest;
 
-	if ((dest = malloc(sizeof(ruleset_t) +
-	    (src->n_rules * sizeof(ruleset_entry_t)))) == NULL)
+	if ((dest = malloc(sizeof(ruleset_t))) == NULL)
 		return (errno);
+    else if ((dest->rules = malloc(src->n_rules * sizeof(ruleset_entry_t)))==NULL)
+        return (errno);
 	dest->n_alloc = src->n_rules;
 	dest->n_rules = src->n_rules;
 	dest->n_samples = src->n_samples;
@@ -477,19 +483,17 @@ int
 ruleset_add(rule_t *rules, int nrules, ruleset_t **rsp, int newrule, int ndx)
 {
 	int i, cnt;
-	ruleset_t *expand, *rs;
-	ruleset_entry_t *cur_re;
+	ruleset_t *rs;
+	ruleset_entry_t *expand, *cur_re;
 	VECTOR not_caught;
 
 	rs = *rsp;
-
 	/* Check for space. */
 	if (rs->n_alloc < rs->n_rules + 1) {
-		expand = realloc(rs, sizeof(ruleset_t) +
-		    (rs->n_rules + 1) * sizeof(ruleset_entry_t));
+		expand = realloc(rs->rules, (rs->n_rules + 1) * sizeof(ruleset_entry_t));
 		if (expand == NULL)
-			return (errno);			
-		rs = expand;
+			return (errno);
+		rs->rules = expand;
 		rs->n_alloc = rs->n_rules + 1;
 		*rsp = rs;
 	}

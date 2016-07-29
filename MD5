@@ -1,8 +1,8 @@
-ace502dbcf8c5d67ba435f76eef932de *DESCRIPTION
+510763167e6adda5fbf45fe6c872cbc1 *DESCRIPTION
 245ac5a53944f59fc318079820d24bc5 *NAMESPACE
 927f0468645a958cb3ec29e448050991 *R/sbrlmod.R
-c5d5674a98aab320dc3ca2853f6aa42a *configure
-808eeb55ff8c2f1336b0340bd1117c89 *configure.ac
+dc7d10795f756dd937a9f458041dc26c *configure
+c52096dc956a447c7b272cf6677a3c67 *configure.ac
 d41d8cd98f00b204e9800998ecf8427e *configure.win
 11a9cc6bf894d460c213c9b3b76c7e8c *data/tictactoe.rda
 0d082c606596342f7e364ac99d6c766b *data/tictactoe.txt.gz
@@ -232,11 +232,11 @@ da10b7a1eef8b29d1c7a9a357a88279d *man/predict.sbrl.Rd
 24b05299b0b49aaa8a56bd4b1d65c6da *man/sbrl-package.Rd
 63b594497cf04dce26832410fdeacfe0 *man/sbrl.Rd
 42d5075131bbc515f40da5e6cf088f26 *man/tictactoe.Rd
-cf73a7ee5f045536065e0e947265a044 *src/Makevars.in
+a6a46b6afff0e76e2dc23f64c6415ccc *src/Makevars.in
 0c563c9fd600f6f790e4d0393df69e1a *src/Makevars.win
 04503700f90f9f50d450bfc99e980ee6 *src/mytime.h
 a26aa479ac4dffc2c871d2617891ba3c *src/quicksort.c
 a839fc487c9061db631dba24f2867796 *src/rcpp_module.cpp
-016992877d626bf1988478c299778543 *src/rule.h
-12f689630ab673869c89a50a190ef391 *src/rulelib.c
+fc37dfa25edeaca4e924c6c776aba48b *src/rule.h
+ddac2e830e0d2e1f17a913f25bef615a *src/rulelib.c
 4387889098485c824914848436ac6b8b *src/train.c
