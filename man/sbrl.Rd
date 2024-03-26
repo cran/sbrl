@@ -1,13 +1,10 @@
 \name{sbrl}
 \alias{sbrl}
-%- Also NEED an '\alias' for EACH other topic documented here.
 \title{
-%%  ~~function to do ... ~~
-TRAIN THE SBRL MODEL WITH THE GIVEN DATA
+fit the scalable bayesian rule lists model
 }
 \description{
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
-TRAIN THE SBRL MODEL WITH THE GIVEN DATA
+Fit the scalable bayesian rule lists model with given data and parameters. It generates a model that is a probabilistic classifier that optimizes the posterior of a Bayesian hierarchical model over pre-mined association rules.
 }
 \usage{
 sbrl(tdata, iters=30000, pos_sign="1", 
@@ -16,7 +13,6 @@ sbrl(tdata, iters=30000, pos_sign="1",
  lambda=10.0, eta=1.0, alpha=c(1,1), nchain=10)
 }
 
-%- maybe also 'usage' for other objects documented here.
 \arguments{
   \item{tdata}{a dataframe, with a "label" column specifying the correct labels for each observation.}
   
@@ -53,16 +49,15 @@ Return a list of :
 	\item{mat_feature_rule}{a binary matrix representing which features are included in which rules.}
 }
 \references{
-  Hongyu Yang, Morris Chen, Cynthia Rudin, Margo Seltzer (2016)
+  Hongyu Yang, Cynthia Rudin, Margo Seltzer (2017)
   \emph{Scalable Bayesian Rule Lists.}
-  Working paper on arXiv 2016.
-  
+  Proceedings of the 34th International Conference on Machine Learning, PMLR 70:3921-3930, 2017.
+
   Benjamin Letham, Cynthia Rudin, Tyler McCormick and David Madigan (2015)
   \emph{Building Interpretable Classifiers with Rules using Bayesian Analysis.}
   Annals of Applied Statistics, 2015.
 }
 \author{
-%%  ~~who you are~~
 Hongyu Yang, Morris Chen, Cynthia Rudin, Margo Seltzer
 }
 
@@ -90,7 +85,3 @@ data_test <- tictactoe[(b+1):nrow(tictactoe), ]
   yhat <- predict(sbrl_model, data_test)
 # yhat will be a list of predicted negative and positive probabilities for the test data. 
 }
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
-\keyword{ ~kwd1 }
-\keyword{ ~kwd2 }% __ONLY ONE__ keyword per line

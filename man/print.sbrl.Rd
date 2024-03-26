@@ -1,9 +1,7 @@
 \name{print.sbrl}
 \alias{show.sbrl}
 \alias{print.sbrl}
-%- Also NEED an '\alias' for EACH other topic documented here.
 \title{
-%%  ~~function to do ... ~~
 INTERPRETABLE VERSION OF A SBRL MODEL
 }
 \description{
@@ -15,7 +13,6 @@ This function prints an sbrl object. It is a method for the generic function pri
 \method{print}{sbrl}(x, useS4=FALSE, \dots)
 \method{show}{sbrl}(x, useS4=FALSE, \dots)
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
   \item{x}{ A sbrl model returned from \code{\link{sbrl}} function }
   \item{useS4}{ An argument used to match showDefault function. Fixed as FALSE. }
@@ -26,7 +23,7 @@ This function prints an sbrl object. It is a method for the generic function pri
 \details{
 	 This function is a method for the generic function print for class "sbrl". It can be invoked by calling print for an object of the appropriate class, or directly by calling print.sbrl regardless of the class of the object.
 }
-
+\value{No return value. This function prints out the logical structure of the sbrl model as a sequence of IF-THEN rules, identical to a decision list or one-sided decision tree.}
 \examples{
 # Let us use the titactoe dataset
 data(tictactoe)
@@ -47,7 +44,3 @@ data_test <- tictactoe[(b+1):nrow(tictactoe), ]
    lambda=10.0, eta=1.0, nchain=25)
   print(sbrl_model)
 }
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
-\keyword{ ~kwd1 }
-\keyword{ ~kwd2 }% __ONLY ONE__ keyword per line

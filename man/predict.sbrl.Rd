@@ -1,25 +1,19 @@
 \name{predict.sbrl}
 \alias{predict}
 \alias{predict.sbrl}
-%- Also NEED an '\alias' for EACH other topic documented here.
 \title{
-%%  ~~function to do ... ~~
 PREDICT THE POSITIVE PROBABILITY FOR THE OBSERVATIONS
 }
 \description{
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
 Returns a list of probabilities.
 }
 \usage{
 \method{predict}{sbrl}(object, tdata, \dots)
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
   \item{object}{sbrl model returned from the \code{\link{sbrl}} function.
-%%     ~~Describe \code{model} here~~
 }
   \item{tdata}{test data
-%%     ~~Describe \code{tdata} here~~
 }
   \item{\dots}{
     further arguments passed to or from other methods.
@@ -52,7 +46,3 @@ data_test <- tictactoe[(b+1):nrow(tictactoe), ]
   yhat <- predict(sbrl_model, data_test)
 # yhat will be a list of predicted negative and positive probabilities for the test data. 
 }
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
-\keyword{ ~kwd1 }
-\keyword{ ~kwd2 }% __ONLY ONE__ keyword per line

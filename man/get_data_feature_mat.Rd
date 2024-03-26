@@ -1,6 +1,5 @@
 \name{get_data_feature_mat}
 \alias{get_data_feature_mat}
-%- Also NEED an '\alias' for EACH other topic documented here.
 \title{
 	GET BINARY MATRIX REPRESENTATION OF THE DATA-FEATURE RELAITONSHIP
 }
@@ -30,5 +29,3 @@ featurenames <- c("c1=b", "c1=o", "c1=x")
 get_data_feature_mat(tictactoe, featurenames)
 #it will generate a binary matrix representing which observations are captured by which features.
 }
-\keyword{ ~kwd1 }
-\keyword{ ~kwd2 }% __ONLY ONE__ keyword per line

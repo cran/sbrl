@@ -47,12 +47,20 @@ sbrl <- function(tdata, iters=30000, pos_sign="1", neg_sign="0", rule_minlen=1, 
     
     # print each rule with a trailing binary string representing whether each data point is captured by that rule.
     # also print the labels in this format
-    write.table(as.matrix(t(mat_data_rules)), file='tdata_R.out', sep=' ', row.names=rulenames, col.names=FALSE, quote=FALSE)
+    out_file=tempfile()
+    label_file=tempfile()
+    #cat(sprintf("[debug] created out_file=%s, size=%s\n", out_file, file.size(out_file)))
+    #cat(sprintf("[debug] created label_file=%s, size=%s\n", label_file, file.size(label_file)))
+    write.table(as.matrix(t(mat_data_rules)), file=out_file, sep=' ', row.names=rulenames, col.names=FALSE, quote=FALSE)
     label <- t(cbind((tdata$label==neg_sign) +0, (tdata$label==pos_sign) +0))
-    write.table(as.matrix(label), file='tdata_R.label', sep=' ', row.names=c("{label=0}", "{label=1}"), col.names=FALSE, quote=FALSE)
+    write.table(as.matrix(label), file=label_file, sep=' ', row.names=c("{label=0}", "{label=1}"), col.names=FALSE, quote=FALSE)
     
     # call the C functions through Rcpp wrapper function sbrl_train
-    rs<-.Call('sbrl_train', PACKAGE = 'sbrl', 0, 0, list(lambda, eta, 0.5, alpha, iters, nchain), "tdata_R.out", "tdata_R.label")$rs
+    rs<-.Call('sbrl_train', PACKAGE = 'sbrl', 0, 0, list(lambda, eta, 0.5, alpha, iters, nchain), out_file, label_file)$rs
+    #cat(sprintf("[debug] written out_file=%s, size=%s\n", out_file, file.size(out_file)))
+    #cat(sprintf("[debug] written label_file=%s, size=%s\n", label_file, file.size(label_file)))
+    unlink(out_file)
+    unlink(label_file)
     
     structure(list(rs=rs, rulenames=rulenames, featurenames=featurenames, mat_feature_rule=mat), class="sbrl")
 }

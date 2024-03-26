@@ -26,9 +26,12 @@ gsl_rng *RAND_GSL;
 #endif
 
 extern "C" {
+// https://stackoverflow.com/questions/1793800/can-i-redefine-a-c-macro-then-define-it-back
+#pragma push_macro("__cplusplus")
 #undef __cplusplus
 #include "rule.h"
 #define __cplusplus
+#pragma pop_macro("__cplusplus")
 
 pred_model_t *train(data_t *, int, int, params_t *);
 int load_data(const char *, const char *, int *, int *, rule_t **, rule_t **);
@@ -136,6 +139,30 @@ RcppExport SEXP sbrl_train(SEXP initSEXP, SEXP methodSEXP, SEXP paramListSEXP, S
     //return __result;
     return Rcpp::wrap(_train(init, method, params, dataFile, labelFile));
     END_RCPP
+}
+// Fortran code and Found no calls to: 'R_registerRoutines', 'R_useDynamicSymbols'
+// https://stackoverflow.com/questions/43101032/fortran-code-and-found-no-calls-to-r-registerroutines-r-usedynamicsymbols
+#include <R.h>
+#include <Rinternals.h>
+#include <stdlib.h> // for NULL
+#include <R_ext/Rdynload.h>
+#include <Rcpp.h>
+
+/* FIXME:
+Check these declarations against the C/Fortran source code.
+*/
+
+// extern void F77_NAME(cf)(int *r, int *cd, double *loci);
+
+static const R_FortranMethodDef FortranEntries[] = {
+  {"sbrl_train", (DL_FUNC) &sbrl_train,  3},
+  {NULL, NULL, 0}
+};
+
+void R_init_sbrl(DllInfo *dll)
+{
+  R_registerRoutines(dll, NULL, NULL, FortranEntries, NULL);
+  R_useDynamicSymbols(dll, FALSE);
 }
 
 int

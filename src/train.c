@@ -30,6 +30,7 @@
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include "mytime.h"
@@ -62,12 +63,12 @@ static int permute_ndx;
 
 int debug;
 
-void _quicksort (void *const, size_t, size_t, int (const void *, const void *));
+// void _quicksort (void *const, size_t, size_t, int (const void *, const void *));
 double compute_log_posterior(ruleset_t *,
     rule_t *, int, rule_t *, params_t *, int, int, double *);
 int gen_poission(double);
 double *get_theta(ruleset_t *, rule_t *, rule_t *, params_t *);
-void gsl_ran_poisson_test();
+void gsl_ran_poisson_test(void);
 void init_gsl_rand_gen(gsl_rng**);
 
 int my_rng(gsl_rng * RAND_GSL)
@@ -286,7 +287,8 @@ permute_rules(int nrules, gsl_rng *RAND_GSL)
 		rule_permutation[i].val = my_rng(RAND_GSL);
 		rule_permutation[i].ndx = i;
 	}
-    _quicksort(rule_permutation, nrules, sizeof(permute_t), permute_cmp);
+//    _quicksort(rule_permutation, nrules, sizeof(permute_t), permute_cmp);
+    qsort(rule_permutation, nrules, sizeof(permute_t), permute_cmp);
 	permute_ndx = 1;
 	return (0);
 
