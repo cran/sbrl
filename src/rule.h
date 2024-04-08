@@ -21,7 +21,7 @@
  * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-
+#pragma once
 #include <stdlib.h>
 #include "gsl/gsl_rng.h"
 #include "gsl/gsl_randist.h"
@@ -56,6 +56,10 @@
  * a rule set stores captures(N, S, RS).
  */
 
+#include <vector>
+#include <string>
+#include <stdexcept>
+
 /*
  * Define types for bit vectors.
  */
@@ -69,8 +73,7 @@ typedef v_entry *VECTOR;
 #endif
 
 int my_rng(gsl_rng *);
-#define RANDOM_RANGE(lo, hi) \
-(unsigned)(lo + (unsigned)((my_rng(RAND_GSL) / (float)RAND_MAX) * (hi - lo + 1)))
+unsigned RANDOM_RANGE(int lo, int hi, gsl_rng *RAND_GSL);
 
 /*
  * We have slightly different structures to represent the original rules 
@@ -78,95 +81,173 @@ int my_rng(gsl_rng *);
  * of the rule; the ruleset structure refers to rules by ID and contains
  * captures which is something computed off of the rule's truth table.
  */
-typedef struct rule {
-	char *features;			/* Representation of the rule. */
+enum class Step
+{
+	Add, Delete, Swap
+};
+
+typedef struct _permute {
+	int val;
+	int ndx;
+} permute_t;
+
+struct Permutations {
+	permute_t * ptr;
+	int permute_ndx;
+	Permutations(int nrules, gsl_rng *RAND_GSL);
+	~Permutations() { if (ptr) free(ptr); }
+	Permutations(const Permutations&) = delete;
+	Permutations& operator=(const Permutations&) = delete;
+	permute_t & operator [](int i) {return ptr[i];}
+};
+
+struct BitVec {
+	VECTOR vec;
+	int rule_ff1(int, int);
+	int rule_isset(int);
+	int count_ones_vector(int);
+	void rule_copy(BitVec &, int);
+	int make_default(int);
+	int set_vector_from_ascii(const char *, size_t, int &, int &);
+	BitVec(size_t n) { rule_vinit(n); };
+	BitVec() = delete;
+    BitVec(const BitVec &other) = delete;
+	BitVec& operator= (const BitVec &other) = delete;
+    BitVec(BitVec &&other) {
+		vec->_mp_alloc = other.vec->_mp_alloc;
+		vec->_mp_size = other.vec->_mp_size;
+		vec->_mp_d = other.vec->_mp_d;
+		other.vec->_mp_d = nullptr;
+	}
+	BitVec& operator= (BitVec &&other) {
+		if (this == &other) return *this;
+		this->vec->_mp_alloc = other.vec->_mp_alloc;
+		this->vec->_mp_size = other.vec->_mp_size;
+		this->vec->_mp_d = other.vec->_mp_d;
+		other.vec->_mp_d = nullptr;
+		return *this;
+	}
+	~BitVec() { if (vec->_mp_d) rule_vfree(); }
+private:
+	int rule_vinit(size_t);
+	int rule_vfree();
+};
+
+struct Rule {
+	std::string features;	/* Representation of the rule. */
 	int support;			/* Number of 1's in truth table. */
 	int cardinality;
-	VECTOR truthtable;		/* Truth table; one bit per sample. */
-} rule_t;
+	BitVec truthtable;		/* Truth table; one bit per sample. */
+	Rule(const std::string &feat, int supp, int card, size_t len): features{feat}, support{supp}, cardinality{card}, truthtable{len} {}
+	Rule() = delete;
+    Rule(const Rule &other) = delete;
+	Rule& operator= (const Rule &other) = delete;
+    Rule(Rule &&other): features{std::move(other.features)}, support{other.support}, cardinality{other.cardinality}, truthtable{std::move(other.truthtable)} {}
+	Rule& operator= (Rule &&other) = delete;
+};
 
-typedef struct ruleset_entry {
+struct RulesetEntry {
 	unsigned rule_id;
 	int ncaptured;			/* Number of 1's in bit vector. */
-	VECTOR captures;		/* Bit vector. */
-} ruleset_entry_t;
+	BitVec captures;		/* Bit vector. */
+	RulesetEntry(unsigned id, int ncap, size_t len): rule_id{id}, ncaptured{ncap}, captures{len} {}
+	RulesetEntry() = delete;
+    RulesetEntry(const RulesetEntry &other) = delete;
+	RulesetEntry& operator= (const RulesetEntry &other) = delete;
+    RulesetEntry(RulesetEntry &&other): rule_id{other.rule_id}, ncaptured{other.ncaptured}, captures{std::move(other.captures)} {
+		other.rule_id = (unsigned int)-1;
+	}
+	RulesetEntry& operator= (RulesetEntry &&other) {
+		if (this == &other) return *this;
+		this->rule_id = other.rule_id;
+		this->ncaptured = other.ncaptured;
+		this->captures = std::move(other.captures);
+		other.rule_id = (unsigned int)-1;
+		return *this;
+	}
+};
 
-typedef struct ruleset {
-	int n_rules;			/* Number of actual rules. */
-	int n_alloc;			/* Spaces allocated for rules. */
+struct Ruleset {
 	int n_samples;
-	ruleset_entry_t * rules;	/* Array of rules. */
-} ruleset_t;
+	std::vector<RulesetEntry> entries;	/* Array of rules. */
+	Ruleset() = default;
+	Ruleset(int nsamp): n_samples{nsamp}, entries{} {}
+    Ruleset(const Ruleset &other) = delete;
+	Ruleset& operator= (const Ruleset &other) = delete;
+	Ruleset(Ruleset &&other) = default;
+	Ruleset& operator= (Ruleset &&other) = default;
 
-typedef struct params {
+	int length() const { return static_cast<int>(entries.size()); }
+	std::vector<int> backup() const;
+	int pick_random_rule(int, gsl_rng *) const;
+	void ruleset_proposal(int, int &, int &, Step &, double &, gsl_rng *) const;
+	void ruleset_add(std::vector<Rule> &, int, int, int);
+	void ruleset_delete(std::vector<Rule> &, int, int);
+	void ruleset_swap(int, int, std::vector<Rule> &);
+	void ruleset_swap_any(int, int, std::vector<Rule> &);
+	// void ruleset_destroy();
+	static Ruleset ruleset_init(int, const std::vector<int> &, std::vector<Rule> &);
+	static Ruleset create_random_ruleset(int, int, int, std::vector<Rule> &, gsl_rng *);
+	Ruleset ruleset_copy();
+};
+
+struct Params {
 	double lambda;
 	double eta;
 	double threshold;
 	int alpha[2];
 	int iters;
 	int nchain;
-} params_t;
+};
 
-typedef struct data {
-	rule_t * rules;		/* rules in BitVector form in the data */
-	rule_t * labels;	/* labels in BitVector form in the data */
+struct Data {
+	std::vector<Rule> rules;		/* rules in BitVector form in the data */
+	std::vector<Rule> labels;	/* labels in BitVector form in the data */
 	int nrules;		/* number of rules */
 	int nsamples;		/* number of samples in the data. */
-} data_t;
+	Data(): rules{}, labels{}, nrules{0}, nsamples{0} {}
+};
 
 typedef struct interval {
 	double a, b;
 } interval_t;
 
-typedef struct pred_model {
-	ruleset_t *rs;		/* best ruleset. */
-	double *theta;
-	interval_t *confIntervals;
-} pred_model_t;
-
+// typedef struct pred_model {
+//        Ruleset *rs;          /* best ruleset. */
+//        double *theta;
+//        interval_t *confIntervals;
+// } pred_model_t;
+struct PredModel
+{
+	std::vector<int> ids;							/* best ruleset. */
+	std::vector<double> thetas;
+	std::vector<interval_t>confIntervals;
+};
 
 /*
  * Functions in the library
  */
-size_t getline_portable(char **, size_t *, FILE *);
-char* strsep_portable(char **, const char *);
-int ruleset_init(int, int, int *, rule_t *, ruleset_t **);
-int ruleset_add(rule_t *, int, ruleset_t **, int, int);
-int ruleset_backup(ruleset_t *, int **);
-int ruleset_copy(ruleset_t **, ruleset_t *);
-void ruleset_delete(rule_t *, int, ruleset_t *, int);
-void ruleset_swap(ruleset_t *, int, int, rule_t *);
-void ruleset_swap_any(ruleset_t *, int, int, rule_t *);
-int pick_random_rule(int, ruleset_t *, gsl_rng *);
+// size_t getline_portable(char **, size_t *, FILE *);
+// char* strsep_portable(char **, const char *);
 
-void ruleset_destroy(ruleset_t *);
-//void ruleset_print(ruleset_t *, rule_t *, int);
-//void ruleset_entry_print(ruleset_entry_t *, int, int);
-int create_random_ruleset(int, int, int, rule_t *, ruleset_t **, gsl_rng *);
+//void ruleset_print(Ruleset *, Rule *, int);
+//void ruleset_entry_print(RulesetEntry *, int, int);
 
-int rules_init(const char *, int *, int *, rule_t **, int);
-void rules_free(rule_t *, const int, int);
+void rules_init(const std::string &, std::vector<Rule> &, const size_t, const size_t, const int);
+void rules_free(std::vector<Rule> &, const int, int);
 
-//void rule_print(rule_t *, int, int, int);
-//void rule_print_all(rule_t *, int, int);
-//void rule_vector_print(VECTOR, int);
-void rule_copy(VECTOR, VECTOR, int);
+//void rule_print(Rule *, int, int, int);
+//void rule_print_all(Rule *, int, int);
+//void rule_vector_print(BitVec &, int);
 
-int rule_ff1(VECTOR, int, int);
-int rule_isset(VECTOR, int);
-int rule_vinit(int, VECTOR *);
-int rule_vfree(VECTOR *);
-int make_default(VECTOR *, int);
-void rule_vand(VECTOR, VECTOR, VECTOR, int, int *);
-void rule_vandnot(VECTOR, VECTOR, VECTOR, int, int *);
-void rule_vor(VECTOR, VECTOR, VECTOR, int, int *);
+void rule_vand(BitVec &, BitVec &, BitVec &, int, int &);
+void rule_vandnot(BitVec &, BitVec &, BitVec &, int, int &);
+void rule_vor(BitVec &, BitVec &, BitVec &, int, int &);
 int count_ones(v_entry);
-int count_ones_vector(VECTOR, int);
 
 /* Functions for the Scalable Baysian Rule Lists */
-double *predict(pred_model_t *, rule_t *labels, params_t *);
-int ruleset_proposal(ruleset_t *, int, int *, int *, char *, double *, gsl_rng *);
-ruleset_t *run_mcmc(int, int, int, rule_t *, rule_t *, params_t *, double, gsl_rng *);
-ruleset_t *run_simulated_annealing(int,
-    int, int, int, rule_t *, rule_t *, params_t *, gsl_rng *);
-pred_model_t *train(data_t *, int, int, params_t *);
+// double *predict(PredModel&, std::vector<Rule> &labels, const Params &);
+Ruleset run_mcmc(int, int, int, std::vector<Rule> &, std::vector<Rule> &, const Params &, Permutations &, double, gsl_rng *);
+Ruleset run_simulated_annealing(int,
+    int, int, int, std::vector<Rule> &, std::vector<Rule> &, const Params &, gsl_rng *);
+PredModel train(Data &, int, int, const Params &);

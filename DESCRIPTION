@@ -1,8 +1,8 @@
 Package: sbrl
 Type: Package
 Title: Scalable Bayesian Rule Lists Model
-Version: 1.3
-Date: 2024-03-21
+Version: 1.4
+Date: 2024-04-07
 Authors@R: c(person("Hongyu", "Yang", role = c("aut", "cre"),
 		     email = "edwardyhy1@gmail.com"),
 	      person("Morris", "Chen", role = "ctb",
@@ -27,6 +27,6 @@ LinkingTo: Rcpp
 NeedsCompilation: yes
 LazyData: yes
 SystemRequirements: gmp (>= 4.2.0), gsl
-Packaged: 2024-03-26 06:42:39 UTC; hongyuy
+Packaged: 2024-04-08 07:56:33 UTC; hongyuy
 Repository: CRAN
-Date/Publication: 2024-03-26 16:50:02 UTC
+Date/Publication: 2024-04-08 11:50:02 UTC

@@ -21,7 +21,9 @@
  * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#define _GNU_SOURCE
+#ifndef _GNU_SOURCE
+	#define _GNU_SOURCE
+#endif
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -29,11 +31,10 @@
 #include <string.h>
 #include <unistd.h>
 #include "rule.h"
-
+#include "Rcpp.h"
+#include <fstream>
 
 /* Function declarations. */
-int ascii_to_vector(char *, size_t, int *, int *, VECTOR *);
-int make_default(VECTOR *, int);
 #define RULE_INC 100
 #define BITS_PER_ENTRY (sizeof(v_entry) * 8)
 
@@ -67,139 +68,89 @@ int byte_ones[] = {
  * to generate data files of the form:
  * 	Rule<TAB><bit vector>\n
  *
- * OUTPUTS: an array of rule_t's
+ * OUTPUTS: an array of Rule's
  */
 
-int
-rules_init(const char *infile, int *nrules,
-    int *nsamples, rule_t **rules_ret, int add_default_rule)
+void
+rules_init(const std::string &infile, std::vector<Rule> &rules_ret,
+           const size_t nrules_expected, const size_t nsamples_expected, const int add_default_rule)
 {
-	FILE *fi;
-	char *cp, *features, *line, *rulestr;
-	int rule_cnt, sample_cnt, rsize;
-	int i, ones, ret;
-	rule_t *rules=NULL;
-	size_t linelen, rulelen;
-	ssize_t len;
-
-	sample_cnt = rsize = 0;
-
-	if ((fi = fopen(infile, "r")) == NULL)
-        return (errno);
+	std::fstream fi(infile.c_str());
+	std::string linestr;
+	int sample_cnt = 0, ones = 0;
 
 	/*
 	 * Leave a space for the 0th (default) rule, which we'll add at
 	 * the end.
 	 */
-	rule_cnt = add_default_rule != 0 ? 1 : 0;
-	line = NULL;
-	linelen = 0;
-	while ((len = getline_portable(&line, &linelen, fi)) > 0) {
-		if (rule_cnt >= rsize) {
-			rsize += RULE_INC;
-                	rules = realloc(rules, rsize * sizeof(rule_t));
-			if (rules == NULL)
-				goto err;
-		}
-
+	if (add_default_rule)
+		rules_ret.emplace_back("default", 0, 0, nsamples_expected);
+	while (std::getline(fi, linestr) && linestr.size()) {
 		/* Get the rule string; line will contain the bits. */
-		features = line;
-		if ((rulestr = strsep_portable(&features, " ")) == NULL) 
-			goto err;
-
-		rulelen = strlen(rulestr) + 1;
-		len -= rulelen;
-
-		if ((rules[rule_cnt].features = strdup(rulestr)) == NULL)
-			goto err;
-
+		const auto pos = linestr.find(' ');
+		if (pos == std::string::npos)
+			// break;
+			throw std::runtime_error("failed to parse rule name and truethtable");
+		rules_ret.emplace_back(linestr.substr(0, pos), 0, 0, nsamples_expected);
+		auto &rule = rules_ret.back();
+		auto truthTable = linestr.data() + pos;
+		auto truthTableLen = linestr.size() - pos - 1;
 		/*
 		 * At this point features is (probably) a line terminated by a
 		 * newline at features[len-1]; if it is newline-terminated, then
 		 * let's make it NUL-terminated and shorten the line length
 		 * by one.
 		 */
-		if (features[len-1] == '\n') {
-			features[len-1] = '\0';
-			len--;
-		}
-		if (ascii_to_vector(features, len, &sample_cnt, &ones,
-		    &rules[rule_cnt].truthtable) != 0)
-		    	goto err;
-		rules[rule_cnt].support = ones;
+		rule.truthtable.set_vector_from_ascii(truthTable, truthTableLen, sample_cnt, ones);
+		rule.support = ones;
 
 		/* Now compute the number of clauses in the rule. */
-		rules[rule_cnt].cardinality = 1;
-		for (cp = rulestr; *cp != '\0'; cp++)
-			if (*cp == ',')
-				rules[rule_cnt].cardinality++;
-		rule_cnt++;
+		rule.cardinality = 1;
+		for (char &c : rule.features)
+			rule.cardinality += (c == ',');
 	}
-	fclose(fi);
 
 	/* Now create the 0'th (default) rule. */
 	if (add_default_rule) {
-		rules[0].support = sample_cnt;
-		rules[0].features = "default";
-		rules[0].cardinality = 0;
-		if (make_default(&rules[0].truthtable, sample_cnt) != 0)
-		    goto err;
+		rules_ret[0].support = sample_cnt;
+		rules_ret[0].features = (char*)"default";
+		rules_ret[0].cardinality = 0;
+		rules_ret[0].truthtable.make_default(sample_cnt);
 	}
-
-	*nsamples = sample_cnt;
-	*nrules = rule_cnt;
-	*rules_ret = rules;
-
-	return (0);
-
-err:
-	ret = errno;
-
-	/* Reclaim space. */
-	if (rules != NULL) {
-		for (i = 1; i < rule_cnt; i++) {
-			free(rules[i].features);
-#ifdef GMP
-			mpz_clear(rules[i].truthtable);
-#else
-			free(rules[i].truthtable);
-#endif
-		}	
-		free(rules);
-	}
-	(void)fclose(fi);
-	return (ret);
+	if (nrules_expected != rules_ret.size())
+		throw std::runtime_error("nrules does not match expected");
+	if (nsamples_expected != sample_cnt)
+		throw std::runtime_error("sample_cnt does not match expected");
 }
 
 void
-rules_free(rule_t *rules, const int nrules, int add_default) {
+rules_free(std::vector<Rule> &rules, const int nrules, int add_default) {
 	int i, start;
 
 	/* Cannot free features for default rule. */
 	start = 0;
 	if (add_default) {
-		rule_vfree(&rules[0].truthtable);
 		start = 1;
 	}
 
 	for (i = start; i < nrules; i++) {
-		rule_vfree(&rules[i].truthtable);
-		free(rules[i].features);
 	}
-	free(rules);
+	// free(rules);
 }
 
 /* Malloc a vector to contain nsamples bits. */
 int
-rule_vinit(int len, VECTOR *ret)
+BitVec::rule_vinit(size_t len)
 {
+	if (len <= 0)
+		throw std::runtime_error("invalid len");
 #ifdef GMP
-	mpz_init2(*ret, len);
+	mpz_init2(this->vec, len);
 #else
 	int nentries;
 
 	nentries = (len + BITS_PER_ENTRY - 1)/BITS_PER_ENTRY;
-	if ((*ret = calloc(nentries, sizeof(v_entry))) == NULL)
+	if ((this->vec = (v_entry*)calloc(nentries, sizeof(v_entry))) == NULL)
 		return(errno);
 #endif
 	return (0);
@@ -207,17 +158,17 @@ rule_vinit(int len, VECTOR *ret)
 
 /* Deallocate a vector. */
 int
-rule_vfree(VECTOR *v)
+BitVec::rule_vfree()
 {
 #ifdef GMP
-	mpz_clear(*v);
+	mpz_clear(this->vec);
 	/* Clobber the memory. */
-	memset(v, 0, sizeof(*v));
+	// memset(&this->vec, 0, sizeof(this->vec));
 
 #else
-	if (*v != NULL) {
-		free(*v);
-		*v = NULL;
+	if (this->vec != NULL) {
+		free(this->vec);
+		this->vec = NULL;
 	}
 #endif
 	return (0);
@@ -229,25 +180,25 @@ rule_vfree(VECTOR *v)
  * GMP functions if we're using the GMP library.
  */
 int
-ascii_to_vector(char *line, size_t len, int *nsamples, int *nones, VECTOR *ret)
+BitVec::set_vector_from_ascii(const char *line, size_t len, int &nsamples, int &nones)
 {
 #ifdef GMP
 	int retval;
 	size_t s;
 
-	if (mpz_init_set_str(*ret, line, 2) != 0) {
+	if (mpz_set_str(this->vec, line, 2) != 0) {
 		retval = errno;
-		mpz_clear(*ret);
+		mpz_clear(this->vec);
 		return (retval);
 	}
-	if ((s = mpz_sizeinbase (*ret, 2)) > (size_t) *nsamples)
-		*nsamples = (int) s;
+	if ((s = mpz_sizeinbase (this->vec, 2)) > (size_t) nsamples)
+		nsamples = (int) s;
 		
-	*nones = mpz_popcount(*ret);
+	nones = mpz_popcount(this->vec);
 	return (0);
 #else
 	/*
-	 * If *nsamples is 0, then we will set it to the number of
+	 * If nsamples is 0, then we will set it to the number of
 	 * 0's and 1's. If it is non-zero, then we'll ensure that
 	 * the line is the right length.
 	 */
@@ -261,11 +212,11 @@ ascii_to_vector(char *line, size_t len, int *nsamples, int *nones, VECTOR *ret)
 	assert(line != NULL);
 
 	/* Compute bufsize in number of unsigned elements. */
-	if (*nsamples == 0)
+	if (nsamples == 0)
 		bufsize = (len + BITS_PER_ENTRY - 1) / BITS_PER_ENTRY;
 	else
-		bufsize = (*nsamples + BITS_PER_ENTRY - 1) / BITS_PER_ENTRY;
-	if ((buf = malloc(bufsize * sizeof(v_entry))) == NULL)
+		bufsize = (nsamples + BITS_PER_ENTRY - 1) / BITS_PER_ENTRY;
+	if ((buf = (v_entry*)malloc(bufsize * sizeof(v_entry))) == NULL)
 		return(errno);
 	
 	bufp = buf;
@@ -303,16 +254,16 @@ ascii_to_vector(char *line, size_t len, int *nsamples, int *nones, VECTOR *ret)
 	if ((i % BITS_PER_ENTRY) != 0)
 		*bufp = val;
 
-	if (*nsamples == 0)
-		*nsamples = i;
-	else if (*nsamples != i) {
+	if (nsamples == 0)
+		nsamples = i;
+	else if (nsamples != i) {
 //		fprintf(stderr, "Wrong number of samples. Expected %d got %d\n",
 //		    *nsamples, i);
 		/* free(buf); */
 		buf = NULL;
 	}
-	*nones = ones;
-	*ret = buf;
+	nones = ones;
+	ret = buf;
 	return (0);
 #endif
 }
@@ -321,15 +272,15 @@ ascii_to_vector(char *line, size_t len, int *nsamples, int *nones, VECTOR *ret)
  * Create the truthtable for a default rule -- that is, it captures all samples.
  */
 int
-make_default(VECTOR *ttp, int len)
+BitVec::make_default(int len)
 {
 #ifdef GMP
-	mpz_init2(*ttp, len);
-	mpz_ui_pow_ui(*ttp, 2, (unsigned long)len);
-	mpz_sub_ui (*ttp, *ttp, 1);
+	// mpz_init2(this->vec, len);	// must be initialized already
+	mpz_ui_pow_ui(this->vec, 2, (unsigned long)len);
+	mpz_sub_ui (this->vec, this->vec, 1);
 	return (0);
 #else
-	VECTOR tt;
+	BitVec tt;
 	size_t nventry, nbytes;
 	unsigned char *c;
 	int m;
@@ -337,12 +288,12 @@ make_default(VECTOR *ttp, int len)
 	nventry = (len + BITS_PER_ENTRY - 1) / BITS_PER_ENTRY;
 	nbytes = nventry * sizeof(v_entry);
 
-	if ((c = malloc(nbytes)) == NULL)
+	if ((c = (unsigned char *)malloc(nbytes)) == NULL)
 		return (errno);
 
 	/* Set all full bytes */
 	memset(c, BYTE_MASK, nbytes);
-	*ttp = tt = (VECTOR)c;
+	ttp = tt = (BitVec)c;
 
 	/* Fix the last entry so it has 0's for any unused bits. */
 	m = len % BITS_PER_ENTRY;
@@ -354,61 +305,29 @@ make_default(VECTOR *ttp, int len)
 }
 
 /* Create a ruleset. */
-int
-ruleset_init(int nrs_rules,
-    int nsamples, int *idarray, rule_t *rules, ruleset_t **retruleset)
+Ruleset
+Ruleset::ruleset_init(
+    int nsamples, const std::vector<int> &idarray, std::vector<Rule> &rules)
 {
-	int cnt, i;
-	rule_t *cur_rule;
-	ruleset_t *rs;
-	ruleset_entry_t *cur_re;
-	VECTOR not_captured;
+	Ruleset rs(nsamples);
 
-	/*
-	 * Allocate space for the ruleset structure and the ruleset entries.
-	 */
-	rs = malloc(sizeof(ruleset_t));
-	if (rs == NULL)
-		return (errno);
-    else {
-        rs->rules = malloc(nrs_rules * sizeof(ruleset_entry_t));
-        if (rs->rules == NULL)
-            return (errno);
-    }
-	/*
-	 * Allocate the ruleset at the front of the structure and then
-	 * the ruleset_entry_t array at the end.
-	 */
-	rs->n_rules = 0;
-	rs->n_alloc = nrs_rules;
-	rs->n_samples = nsamples;
-	make_default(&not_captured, nsamples);
+	BitVec not_captured(nsamples);
+	not_captured.make_default(nsamples);
 
-	cnt = nsamples;
-	for (i = 0; i < nrs_rules; i++) {
-		cur_rule = rules + idarray[i];
-		cur_re = rs->rules + i;
-		cur_re->rule_id = idarray[i];
+	int cnt = nsamples;
+	for (int i = 0; i < idarray.size(); i++) {
+		rs.entries.emplace_back(idarray[i], 0, nsamples);
+		auto cur_re = &rs.entries.back();
+		auto cur_rule = &rules[idarray[i]];
 
-		if (rule_vinit(nsamples, &cur_re->captures) != 0)
-			goto err1;
-		rs->n_rules++;
 		rule_vand(cur_re->captures, not_captured,
-		    cur_rule->truthtable, nsamples, &cur_re->ncaptured);
+		    cur_rule->truthtable, nsamples, cur_re->ncaptured);
 
 		rule_vandnot(not_captured, not_captured,
-		    rs->rules[i].captures, nsamples, &cnt);
+		    rs.entries[i].captures, nsamples, cnt);
 	}
 	assert(cnt==0);
-
-	*retruleset = rs;
-	(void)rule_vfree(&not_captured);
-	return (0);
-
-err1:
-	(void)rule_vfree(&not_captured);
-	ruleset_destroy(rs);
-	return (ENOMEM);
+	return rs;
 }
 
 /*
@@ -416,22 +335,12 @@ err1:
  * We don't know how long the idarray currently is so always call
  * realloc, which will do the right thing.
  */
-int
-ruleset_backup(ruleset_t *rs, int **rs_idarray)
+std::vector<int> Ruleset::backup() const
 {
-	int i, *ids;
-	
-	ids = *rs_idarray;
-
-	if ((ids = realloc(ids, (rs->n_rules * sizeof(int)))) == NULL)
-		return (errno);
-
-	for (i = 0; i < rs->n_rules; i++)
-		ids[i] = rs->rules[i].rule_id;
-
-	*rs_idarray = ids;
-
-	return (0);
+	std::vector<int> ids;
+	for (auto &entry : this->entries)
+		ids.push_back(entry.rule_id);
+	return ids;
 }
 
 /*
@@ -439,158 +348,129 @@ ruleset_backup(ruleset_t *rs, int **rs_idarray)
  * terribly efficient, but it's simpler. If the allocation and frees become
  * too expensive, we can make this smarter.
  */
-int
-ruleset_copy(ruleset_t **ret_dest, ruleset_t *src)
+Ruleset
+Ruleset::ruleset_copy()
 {
-	int i;
-	ruleset_t *dest;
-
-	if ((dest = malloc(sizeof(ruleset_t))) == NULL)
-		return (errno);
-    else if ((dest->rules = malloc(src->n_rules * sizeof(ruleset_entry_t)))==NULL)
-        return (errno);
-	dest->n_alloc = src->n_rules;
-	dest->n_rules = src->n_rules;
-	dest->n_samples = src->n_samples;
-    
-	for (i = 0; i < src->n_rules; i++) {
-		dest->rules[i].rule_id = src->rules[i].rule_id;
-		dest->rules[i].ncaptured = src->rules[i].ncaptured;
-		rule_vinit(src->n_samples, &(dest->rules[i].captures));
-		rule_copy(dest->rules[i].captures,
-		    src->rules[i].captures, src->n_samples);
+	Ruleset dest(this->n_samples);
+	for (auto &entry : this->entries) {
+		dest.entries.emplace_back(entry.rule_id, entry.ncaptured, this->n_samples);
+		entry.captures.rule_copy(dest.entries.back().captures, this->n_samples);
 	}
-	*ret_dest = dest;
-
-	return (0);
+	return dest;
 }
 
 /* Reclaim resources associated with a ruleset. */
+/*
 void
-ruleset_destroy(ruleset_t *rs)
+Ruleset::ruleset_destroy()
 {
 	int j;
-	for (j = 0; j < rs->n_rules; j++)
-		rule_vfree(&rs->rules[j].captures);
-	free(rs);
+	for (auto &entry : this->entries)
+		entry.captures.rule_vfree();
+	// free(rs);
 }
+*/
 
 /*
  * Add the specified rule to the ruleset at position ndx (shifting
  * all rules after ndx down by one).
  */
-int
-ruleset_add(rule_t *rules, int nrules, ruleset_t **rsp, int newrule, int ndx)
+void
+Ruleset::ruleset_add(std::vector<Rule> &rules, int nrules, int newrule, int ndx)
 {
 	int i, cnt;
-	ruleset_t *rs;
-	ruleset_entry_t *expand, *cur_re;
-	VECTOR not_caught;
+	// RulesetEntry *expand, *cur_re;
+	BitVec not_caught(this->n_samples);
 
-	rs = *rsp;
-	/* Check for space. */
-	if (rs->n_alloc < rs->n_rules + 1) {
-		expand = realloc(rs->rules, (rs->n_rules + 1) * sizeof(ruleset_entry_t));
-		if (expand == NULL)
-			return (errno);
-		rs->rules = expand;
-		rs->n_alloc = rs->n_rules + 1;
-		*rsp = rs;
-	}
-
+	const auto n_rules = this->length();
+	this->entries.emplace_back(0, 0, this->n_samples);
 	/*
 	 * Compute all the samples that are caught by rules AFTER the
 	 * rule we are inserting. Then we'll recompute all the captures
 	 * from the new rule to the end.
 	 */
-	rule_vinit(rs->n_samples, &not_caught);
-	for (i = ndx; i < rs->n_rules; i++)
+	for (i = ndx; i < n_rules; i++)
 	    rule_vor(not_caught,
-	        not_caught, rs->rules[i].captures, rs->n_samples, &cnt);
+	        not_caught, this->entries[i].captures, this->n_samples, cnt);
 
 
 	/*
 	 * Shift later rules down by 1 if necessary. For GMP, what we're
 	 * doing may be a little sketchy -- we're copying the mpz_t's around.
 	 */
-	if (ndx != rs->n_rules) {
-		memmove(rs->rules + (ndx + 1), rs->rules + ndx,
-		    sizeof(ruleset_entry_t) * (rs->n_rules - ndx));
+	if (ndx != n_rules) {
+		// memmove(rs->entries + (ndx + 1), rs->entries + ndx,
+		//     sizeof(RulesetEntry) * (rs->n_rules - ndx));
+		for (int i = n_rules; i > ndx; --i)
+			std::swap(this->entries[i], this->entries[i-1]);
 	}
 
 	/* Insert and initialize the new rule. */
-	rs->n_rules++;
-	rs->rules[ndx].rule_id = newrule;
-	rule_vinit(rs->n_samples, &rs->rules[ndx].captures);
+	this->entries[ndx].rule_id = newrule;
 
 	/*
 	 * Now, recompute all the captures entries for the new rule and
 	 * all rules following it.
 	 */
     
-	for (i = ndx; i < rs->n_rules; i++) {
-		cur_re = rs->rules + i;
+	for (i = ndx; i < this->length(); i++) {
+		auto cur_re = &this->entries[i];
 		/*
 		 * Captures for this rule gets anything in not_caught
 		 * that is also in the rule's truthtable.
 		 */
 		rule_vand(cur_re->captures,
 		    not_caught, rules[cur_re->rule_id].truthtable,
-		    rs->n_samples, &cur_re->ncaptured);
+		    this->n_samples, cur_re->ncaptured);
 
 		rule_vandnot(not_caught,
-		    not_caught, cur_re->captures, rs->n_samples, &cnt);
+		    not_caught, cur_re->captures, this->n_samples, cnt);
 	}
-	assert(cnt == 0);
-	rule_vfree(&not_caught);
-
-	return(0);
+	if (cnt != 0)
+		throw std::runtime_error("ruleset_add failed");
 }
 
 /*
  * Delete the rule in the ndx-th position in the given ruleset.
  */
 void
-ruleset_delete(rule_t *rules, int nrules, ruleset_t *rs, int ndx)
+Ruleset::ruleset_delete(std::vector<Rule> &rules, int nrules, int ndx)
 {
 	int i, nset;
-	VECTOR tmp_vec;
-	ruleset_entry_t *old_re, *cur_re;
+	BitVec tmp_vec(this->n_samples);
+	// RulesetEntry *old_re, *cur_re;
+	const auto n_rules = this->length();
 
 	/* Compute new captures for all rules following the one at ndx.  */
-	old_re = rs->rules + ndx;
+	auto old_re = &this->entries[ndx];
 
-	if (rule_vinit(rs->n_samples, &tmp_vec) != 0)
-		return;
-	for (i = ndx + 1; i < rs->n_rules; i++) {
+	for (i = ndx + 1; i < n_rules; i++) {
 		/*
 		 * My new captures is my old captures or'd with anything that
 		 * was captured by ndx and is captured by my rule.
 		 */
-		cur_re = rs->rules + i;
+		auto cur_re = &this->entries[i];
 		rule_vand(tmp_vec, rules[cur_re->rule_id].truthtable,
-		    old_re->captures, rs->n_samples, &nset);
+		    old_re->captures, this->n_samples, nset);
 		rule_vor(cur_re->captures, cur_re->captures,
-		    tmp_vec, rs->n_samples, &rs->rules[i].ncaptured);
+		    tmp_vec, this->n_samples, this->entries[i].ncaptured);
 
 		/*
 		 * Now remove the ones from old_re->captures that just got set
 		 * for rule i because they should not be captured later.
 		 */
 		rule_vandnot(old_re->captures, old_re->captures,
-		    cur_re->captures, rs->n_samples, &nset);
+		    cur_re->captures, this->n_samples, nset);
 	}
 
-	/* Now remove alloc'd data for rule at ndx and for tmp_vec. */
-	rule_vfree(&tmp_vec);
-	rule_vfree(&rs->rules[ndx].captures);
-
 	/* Shift up cells if necessary. */
-	if (ndx != rs->n_rules - 1)
-		memmove(rs->rules + ndx, rs->rules + ndx + 1,
-		    sizeof(ruleset_entry_t) * (rs->n_rules - 1 - ndx));
+	if (ndx != n_rules - 1)
+		// memmove(rs->entries + ndx, rs->entries + ndx + 1,
+		//     sizeof(RulesetEntry) * (rs->n_rules - 1 - ndx));
+		for (int i = ndx; i < n_rules-1; ++i)
+			std::swap(this->entries[i], this->entries[i+1]);
 
-	rs->n_rules--;
+	this->entries.pop_back();
 	return;
 }
 
@@ -598,28 +478,30 @@ ruleset_delete(rule_t *rules, int nrules, ruleset_t *rs, int ndx)
  * We create random rulesets for testing and for creating initial proposals
  * in MCMC
  */
-int
-create_random_ruleset(int size,
-    int nsamples, int nrules, rule_t *rules, ruleset_t **rs, gsl_rng *RAND_GSL)
+Ruleset
+Ruleset::create_random_ruleset(int size,
+    int nsamples, int nrules, std::vector<Rule> &rules, gsl_rng *RAND_GSL)
 {
-	int i, j, *ids, next, ret;
+	int i, j, next;
+	std::vector<int> ids;
 
-	ids = calloc(size, sizeof(int));
 	for (i = 0; i < (size - 1); i++) {
-try_again:	next = RANDOM_RANGE(1, (nrules - 1));
-		/* Check for duplicates. */
-		for (j = 0; j < i; j++)
-			if (ids[j] == next)
-				goto try_again;
-		ids[i] = next;
+		next = RANDOM_RANGE(1, (nrules - 1), RAND_GSL);
+		do {
+			next = RANDOM_RANGE(1, (nrules - 1), RAND_GSL);
+			/* Check for duplicates. */
+			for (j = 0; j < i; j++)
+				if (ids[j] == next)
+					break;
+		}
+		while (j != i);
+		ids.push_back(next);
 	}
 
 	/* Always put rule 0 (the default) as the last rule. */
 	ids[i] = 0;
 
-	ret = ruleset_init(size, nsamples, ids, rules, rs);
-	free(ids);
-	return (ret);
+	return Ruleset::ruleset_init(nsamples, ids, rules);
 }
 
 #define MAX_TRIES 10
@@ -627,19 +509,19 @@ try_again:	next = RANDOM_RANGE(1, (nrules - 1));
  * Given a rule set, pick a random rule (not already in the set).
  */
 int
-pick_random_rule(int nrules, ruleset_t *rs, gsl_rng *RAND_GSL)
+Ruleset::pick_random_rule(int nrules, gsl_rng *RAND_GSL) const
 {
-	int cnt, j, new_rule;
+	int cnt, new_rule;
 
 	cnt = 0;
 pickrule:
 	if (cnt < MAX_TRIES)
-		new_rule = RANDOM_RANGE(1, (nrules-1));
+		new_rule = RANDOM_RANGE(1, (nrules-1), RAND_GSL);
 	else
 		new_rule = 1 + (new_rule % (nrules-2));
 		
-	for (j = 0; j < rs->n_rules; j++) {
-		if (rs->rules[j].rule_id == new_rule) {
+	for (auto &entry : this->entries) {
+		if (entry.rule_id == new_rule) {
 			cnt++;
 			goto pickrule;
 		}
@@ -649,17 +531,17 @@ pickrule:
 
 /* dest must exist */
 void
-rule_copy(VECTOR dest, VECTOR src, int len)
+BitVec::rule_copy(BitVec &dest, int len)
 {
 #ifdef GMP
-	mpz_set(dest, src);
+	mpz_set(dest.vec, this->vec);
 #else
 	int i, nentries;
 
-	assert(dest != NULL);
+	assert(dest.vec != NULL);
 	nentries = (len + BITS_PER_ENTRY - 1)/BITS_PER_ENTRY;
 	for (i = 0; i < nentries; i++)
-		dest[i] = src[i];
+		dest.vec[i] = this->vec[i];
 #endif
 }
 
@@ -670,55 +552,44 @@ rule_copy(VECTOR dest, VECTOR src, int len)
  * 	then swap positions i and j
  */
 void
-ruleset_swap(ruleset_t *rs, int i, int j, rule_t *rules)
+Ruleset::ruleset_swap(int i, int j, std::vector<Rule> &rules)
 {
 	int nset;
-	VECTOR tmp_vec;
-	ruleset_entry_t re;
+	BitVec tmp_vec(this->n_samples);
 
-	assert(i < (rs->n_rules - 1));
-	assert(j < (rs->n_rules - 1));
+	assert(i < (this->length() - 1));
+	assert(j < (this->length() - 1));
 	assert(i + 1 == j);
 
-	rule_vinit(rs->n_samples, &tmp_vec);
-
 	/* tmp_vec =  i.captures & j.tt */
-	rule_vand(tmp_vec, rs->rules[i].captures,
-	    rules[rs->rules[j].rule_id].truthtable, rs->n_samples, &nset);
+	rule_vand(tmp_vec, this->entries[i].captures,
+	    rules[this->entries[j].rule_id].truthtable, this->n_samples, nset);
 	/* j.captures = j.captures | tmp_vec */
-	rule_vor(rs->rules[j].captures, rs->rules[j].captures,
-	    tmp_vec, rs->n_samples, &rs->rules[j].ncaptured);
+	rule_vor(this->entries[j].captures, this->entries[j].captures,
+	    tmp_vec, this->n_samples, this->entries[j].ncaptured);
 
 	/* i.captures = i.captures & ~j.captures */
-	rule_vandnot(rs->rules[i].captures, rs->rules[i].captures,
-	    rs->rules[j].captures, rs->n_samples, &rs->rules[i].ncaptured);
+	rule_vandnot(this->entries[i].captures, this->entries[i].captures,
+	    this->entries[j].captures, this->n_samples, this->entries[i].ncaptured);
 
 	/* Now swap the two entries */
-	re = rs->rules[i];
-	rs->rules[i] = rs->rules[j];
-	rs->rules[j] = re;
-
-	rule_vfree(&tmp_vec);
+	std::swap(this->entries[i], this->entries[j]);
 }
 
 void
-ruleset_swap_any(ruleset_t * rs, int i, int j, rule_t * rules)
+Ruleset::ruleset_swap_any(int i, int j, std::vector<Rule> & rules)
 {
 	int cnt, cnt_check, k, temp;
-	VECTOR caught;
+	BitVec caught(this->n_samples);
 
 	if (i == j)
 		return;
 
-	assert(i < rs->n_rules);
-	assert(j < rs->n_rules);
+	assert(i < this->length());
+	assert(j < this->length());
 
 	/* Ensure that i < j. */
-	if (i > j) {
-		temp = i;
-		i = j;
-		j = temp;
-	}
+	if (i > j) std::swap(i, j);
 
 	/*
 	 * The captured arrays before i and after j need not change.
@@ -726,16 +597,13 @@ ruleset_swap_any(ruleset_t * rs, int i, int j, rule_t * rules)
 	 * (inclusive) and then compute the captures array from scratch
 	 * rules between rule i and rule j, both * inclusive.
 	 */
-	rule_vinit(rs->n_samples, &caught);
 
 	for (k = i; k <= j; k++)
 		rule_vor(caught,
-		    caught, rs->rules[k].captures, rs->n_samples, &cnt);
+		    caught, this->entries[k].captures, this->n_samples, cnt);
 
 	/* Now swap the rules in the ruleset. */
-	temp = rs->rules[i].rule_id;
-	rs->rules[i].rule_id = rs->rules[j].rule_id;
-	rs->rules[j].rule_id = temp;
+	std::swap(this->entries[i].rule_id, this->entries[j].rule_id);
 
 	cnt_check = 0;
 	for (k = i; k <= j; k++) {
@@ -743,31 +611,29 @@ ruleset_swap_any(ruleset_t * rs, int i, int j, rule_t * rules)
 		 * Compute the items captured by rule k by anding the caught
 		 * vector with the truthtable of the kth rule.
 		 */
-		rule_vand(rs->rules[k].captures, caught,
-		    rules[rs->rules[k].rule_id].truthtable,
-		    rs->n_samples, &rs->rules[k].ncaptured);
-		cnt_check += rs->rules[k].ncaptured;
+		rule_vand(this->entries[k].captures, caught,
+		    rules[this->entries[k].rule_id].truthtable,
+		    this->n_samples, this->entries[k].ncaptured);
+		cnt_check += this->entries[k].ncaptured;
 
 		/* Now remove the caught items from the caught vector. */
 		rule_vandnot(caught,
-		    caught, rs->rules[k].captures, rs->n_samples, &temp);
+		    caught, this->entries[k].captures, this->n_samples, temp);
 	}
 	assert(temp == 0);
 	assert(cnt == cnt_check);
-
-	rule_vfree(&caught);
 }
 
 /*
  * Dest must have been created.
  */
 void
-rule_vand(VECTOR dest, VECTOR src1, VECTOR src2, int nsamples, int *cnt)
+rule_vand(BitVec &dest, BitVec &src1, BitVec &src2, int nsamples, int &cnt)
 {
 #ifdef GMP
-	mpz_and(dest, src1, src2);
-	*cnt = 0;
-	*cnt = mpz_popcount(dest);
+	mpz_and(dest.vec, src1.vec, src2.vec);
+	cnt = 0;
+	cnt = mpz_popcount(dest.vec);
 #else
 	int i, count, nentries;
 
@@ -778,19 +644,19 @@ rule_vand(VECTOR dest, VECTOR src1, VECTOR src2, int nsamples, int *cnt)
 		dest[i] = src1[i] & src2[i];
 		count += count_ones(dest[i]);
 	}
-	*cnt = count;
+	cnt = count;
 	return;
 #endif
 }
 
 /* Dest must have been created. */
 void
-rule_vor(VECTOR dest, VECTOR src1, VECTOR src2, int nsamples, int *cnt)
+rule_vor(BitVec &dest, BitVec &src1, BitVec &src2, int nsamples, int &cnt)
 {
 #ifdef GMP
-	mpz_ior(dest, src1, src2);
-	*cnt = 0;
-	*cnt = mpz_popcount(dest);
+	mpz_ior(dest.vec, src1.vec, src2.vec);
+	cnt = 0;
+	cnt = mpz_popcount(dest.vec);
 #else
 	int i, count, nentries;
 
@@ -801,7 +667,7 @@ rule_vor(VECTOR dest, VECTOR src1, VECTOR src2, int nsamples, int *cnt)
 		dest[i] = src1[i] | src2[i];
 		count += count_ones(dest[i]);
 	}
-	*cnt = count;
+	cnt = count;
 
 	return;
 #endif
@@ -816,18 +682,14 @@ rule_vor(VECTOR dest, VECTOR src1, VECTOR src2, int nsamples, int *cnt)
  * the temporary is significantly faster (for large vectors).
  */
 void
-rule_vandnot(VECTOR dest,
-    VECTOR src1, VECTOR src2, int nsamples, int *ret_cnt)
+rule_vandnot(BitVec &dest, BitVec &src1, BitVec &src2, int nsamples, int &ret_cnt)
 {
 #ifdef GMP
-	mpz_t tmp;
-
-	rule_vinit(nsamples, &tmp);
-	mpz_com(tmp, src2);
-	mpz_and(dest, src1, tmp);
-	*ret_cnt = 0;
-	*ret_cnt = mpz_popcount(dest);
-	rule_vfree(&tmp);
+	BitVec tmp(nsamples);
+	mpz_com(tmp.vec, src2.vec);
+	mpz_and(dest.vec, src1.vec, tmp.vec);
+	ret_cnt = 0;
+	ret_cnt = mpz_popcount(dest.vec);
 #else
 	int i, count, nentries;
 
@@ -839,19 +701,19 @@ rule_vandnot(VECTOR dest,
 		count += count_ones(dest[i]);
 	}
 
-	*ret_cnt = count;
+	ret_cnt = count;
     return;
 #endif
 }
 
 int
-count_ones_vector(VECTOR v, int len) {
+BitVec::count_ones_vector(int len) {
 #ifdef GMP
-	return mpz_popcount(v);
+	return mpz_popcount(this->vec);
 #else
 	int cnt = 0, i;
 	for (i = 0; i < (len+BITS_PER_ENTRY-1)/BITS_PER_ENTRY; i++) {
-		cnt += count_ones(v[i]);
+		cnt += count_ones(this->vec[i]);
 	}
 	return cnt;
 #endif
@@ -874,15 +736,15 @@ count_ones(v_entry val)
  * Find first set bit starting at position start_pos.
  */
 int
-rule_ff1(VECTOR v, int start_pos, int len)
+BitVec::rule_ff1(int start_pos, int len)
 {
 #ifdef GMP
 	(void)len;
-	return mpz_scan1(v, start_pos);
+	return mpz_scan1(this->vec, start_pos);
 #else
 	int i;
 	for (i = start_pos; i < len; i++) {
-		if (rule_isset(v, i))
+		if (this->rule_isset(i))
 			return i;
 	}
 	return -1;
@@ -890,7 +752,7 @@ rule_ff1(VECTOR v, int start_pos, int len)
 }
 
 //void
-//ruleset_print(ruleset_t *rs, rule_t *rules, int detail)
+//ruleset_print(Ruleset *rs, Rule *rules, int detail)
 //{
 //	int i, n;
 //	int total_support;
@@ -908,7 +770,7 @@ rule_ff1(VECTOR v, int start_pos, int len)
 //}
 
 //void
-//ruleset_entry_print(ruleset_entry_t *re, int n, int detail)
+//ruleset_entry_print(RulesetEntry *re, int n, int detail)
 //{
 //	printf("%d captured; \n", re->ncaptured);
 //	if (detail)
@@ -916,9 +778,9 @@ rule_ff1(VECTOR v, int start_pos, int len)
 //}
 
 //void
-//rule_print(rule_t *rules, int ndx, int n, int detail)
+//rule_print(Rule *rules, int ndx, int n, int detail)
 //{
-//	rule_t *r;
+//	Rule *r;
 //
 //	r = rules + ndx;
 //	printf("RULE %d: ( %s ), support=%d, card=%d:",
@@ -928,7 +790,7 @@ rule_ff1(VECTOR v, int start_pos, int len)
 //}
 
 //void
-//rule_vector_print(VECTOR v, int n)
+//rule_vector_print(BitVec v, int n)
 //{
 //#ifdef GMP
 //	mpz_out_str(stdout, 16, v);
@@ -943,7 +805,7 @@ rule_ff1(VECTOR v, int start_pos, int len)
 //}
 
 //void
-//rule_print_all(rule_t *rules, int nrules, int nsamples)
+//rule_print_all(Rule *rules, int nrules, int nsamples)
 //{
 //	int i, n;
 //
@@ -956,14 +818,14 @@ rule_ff1(VECTOR v, int start_pos, int len)
  * Return 0 if bit e is not set in vector v; return non-0 otherwise.
  */
 int
-rule_isset(VECTOR v, int e) {
+BitVec::rule_isset(int e) {
 #ifdef GMP
-	return mpz_tstbit(v, e);
+	return mpz_tstbit(this->vec, e);
 #else
 	return ((v[e/BITS_PER_ENTRY] & (1 << (e % BITS_PER_ENTRY))) != 0);
 #endif
 }
-
+/*
 size_t getline_portable(char **lineptr, size_t *n, FILE *stream) {
     char *bufptr = NULL;
     char *p = bufptr;
@@ -987,7 +849,7 @@ size_t getline_portable(char **lineptr, size_t *n, FILE *stream) {
     	return -1;
     }
     if (bufptr == NULL) {
-    	bufptr = malloc(128);
+		bufptr = (char*)malloc(128);
     	if (bufptr == NULL) {
     		return -1;
     	}
@@ -998,7 +860,7 @@ size_t getline_portable(char **lineptr, size_t *n, FILE *stream) {
 		offset = p - bufptr;
     	if ((p - bufptr + 1) > size) {
     		size = size + 128;
-    		bufptr = realloc(bufptr, size);
+			bufptr = (char*)realloc(bufptr, size);
     		if (bufptr == NULL) {
     			return -1;
     		}
@@ -1037,3 +899,4 @@ char* strsep_portable(char** stringp, const char* delim)
 
   return start;
 }
+*/
